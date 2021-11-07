@@ -10,6 +10,8 @@ const MOVE_SPEED = 120
 const JUMP_FORCE = 360
 const BIG_JUMP_FORCE = 550
 let CURRENT_JUMP_FORCE = JUMP_FORCE
+let isJumping = true
+const FALL_DEATH = 400
 
 loadRoot('https://i.imgur.com/')
 loadSprite('coin', 'wbKxhcd.png')
@@ -25,7 +27,7 @@ loadSprite('pipe-top-right', 'hj2GK4n.png')
 loadSprite('pipe-bottom-left', 'c1cYSbt.png')
 loadSprite('pipe-bottom-right', 'nqQ79eI.png')
 
-scene("game", () => {
+scene("game", ({ level, score }) => {
     layers(['bg', 'obj', 'ui'], 'obj')
 
     const map = [
@@ -51,24 +53,24 @@ scene("game", () => {
         '}': [sprite('unboxed'), solid()],
         '(': [sprite('pipe-bottom-left'), solid(), scale(0.5)],
         ')': [sprite('pipe-bottom-right'), solid(), scale(0.5)],
-        '-': [sprite('pipe-top-left'), solid(), scale(0.5)],
-        '+': [sprite('pipe-top-right'), solid(), scale(0.5)],
-        '^': [sprite('evil-shroom'), solid()],
+        '-': [sprite('pipe-top-left'), solid(), scale(0.5), 'pipe'],
+        '+': [sprite('pipe-top-right'), solid(), scale(0.5), 'pipe'],
+        '^': [sprite('evil-shroom'), solid(), 'dangerous'],
         '#': [sprite('mushroom'), solid(), 'mushroom', body()],
     }
 
     const gameLevel = addLevel(map, levelCfg)
 
-    const scoreLabel = add([
-        text('test'),
+    const scoreLabel = add([                                     //displays score
+        text(score),
         pos(30, 6),
-        layer('ui'),
+        layer('ui'),                                  
         {
-            value: 'test',
+            value: score,                                                     
         }
     ])
 
-    add([text('level ' + 'test', pos(4,6))])
+    add([text('level ' + parseInt(level + 1)), pos(40, 6)])        //displays level info
     
     function big() {
         let timer = 0
@@ -77,7 +79,7 @@ scene("game", () => {
             update() {
                 if (isBig) {
                     timer -= dt()
-                    if (timer <= 0) {                         // make mario small when time is over
+                    if (timer <= 0) {                            // make mario small when time is over
                         this.smallify()
                     }
                 }
@@ -135,6 +137,36 @@ scene("game", () => {
         scoreLabel.value++                                      //+1 score added when mario collides with coin
         scoreLabel.text = scoreLabel.value                      //display updated score
     })
+    
+    const ENEMY_SPEED = 20
+
+    action('dangerous', (d) => {
+        d.move(-ENEMY_SPEED, 0)
+    })
+
+    player.collides('dangerous', (d) => {
+        if (isJumping) {
+            destroy(d)
+        } else {
+            go('lose', { score: scoreLabel.value})
+        }
+    })
+    
+    player.action(() => {
+        camPos(player.pos)
+        if (player.pos.y >= FALL_DEATH) {
+            go('lose', { score: scoreLabel.value})
+        }
+    })
+
+    player.collides('pipe', () => {                                   //to change level
+        keyPress('down', () => {
+            go('game', {
+                level: (level + 1),
+                score: scoreLabel.value
+            })
+        })
+    })
 
     keyDown('left', () => {
         player.move(-MOVE_SPEED, 0)
@@ -144,11 +176,22 @@ scene("game", () => {
         player.move(MOVE_SPEED, 0)
     })
 
+    player.action(() => {
+        if(player.grounded()) {
+            isJumping = false
+        }
+    })
+
     keyPress('space', () => {
         if (player.grounded()) {
+            isJumping = true
             player.jump(CURRENT_JUMP_FORCE)
         }
     })
 })
 
-start("game")
+scene('lose', ({ score }) => {
+    add([text(score, 32), origin('center'), pos(width()/2, height()/2)])
+})
+
+start("game", { level: 0, score: 0 })
